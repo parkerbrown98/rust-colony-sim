@@ -1,5 +1,6 @@
 mod game;
 mod fsutils;
+mod display;
 
 fn main() {
     let config_path = "Game.toml";
