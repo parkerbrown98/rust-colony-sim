@@ -499,6 +499,7 @@ dependencies = [
 name = "space_colony_sim"
 version = "0.1.0"
 dependencies = [
+ "crossterm",
  "ratatui",
  "serde",
  "serde_json",
