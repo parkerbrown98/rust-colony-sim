@@ -1,5 +1,8 @@
+use crossterm::event::{self, Event, KeyCode};
 use serde::Deserialize;
 use std::{fs, io, thread, time};
+
+use crate::display::GameDisplay;
 
 pub struct GameState {
     entities: Vec<Box<dyn Entity>>,
@@ -33,6 +36,10 @@ impl GameState {
             entity.update(dt);
         }
     }
+
+    pub fn exit(&self) {
+        // ...
+    }
 }
 
 #[derive(Deserialize, Debug)]
@@ -51,15 +58,16 @@ impl Config {
 
 pub struct Game {
     pub state: GameState,
+    pub display: GameDisplay,
     pub config: Config,
 }
 
 impl Game {
     pub fn new(config_path: &str) -> Result<Game, io::Error> {
-        let config = Config::load(config_path)?;
         Ok(Game {
             state: GameState::new(),
-            config,
+            display: GameDisplay::new(),
+            config: Config::load(config_path)?,
         })
     }
 
@@ -72,7 +80,7 @@ impl Game {
     }
 
     pub fn run(&mut self) {
-        self.start();
+        self.start().unwrap();
 
         // Use tick rate from config (ticks per second)
         let tick_rate = time::Duration::from_secs_f32(self.config.tick_rate);
@@ -83,7 +91,18 @@ impl Game {
             let dt = now.duration_since(last_tick).as_secs_f32();
             last_tick = now;
 
-            self.update(dt);
+            self.update(dt).unwrap();
+
+            // Handle input
+            let input_event = event::read().expect("Error reading input");
+            match input_event {
+                Event::Key(event) => {
+                    if event.code == KeyCode::Char('q') {
+                        break;
+                    }
+                }
+                _ => {}
+            }
 
             // Sleep until next tick
             let elapsed = now.elapsed();
@@ -91,16 +110,27 @@ impl Game {
                 thread::sleep(tick_rate - elapsed);
             }
         }
+
+        self.exit();
     }
 
-    fn start(&mut self) {
-        let ship = Ship::new(Coords::new(0.0, 0.0, 0.0));
+    fn start(&mut self) -> io::Result<()> {
+        let ship = Ship::new(Coords::new(0.0, 0.0));
         self.state.add_entity(Box::new(ship));
         self.state.start();
+        self.display.start()
+
     }
 
-    fn update(&mut self, dt: f32) {
+    fn update(&mut self, dt: f32) -> io::Result<()> {
         self.state.update(dt);
+        self.display.update(dt)?;
+        Ok(())
+    }
+
+    fn exit(&mut self) {
+        self.display.exit();
+        self.state.exit();
     }
 }
 
@@ -108,18 +138,17 @@ impl Game {
 pub struct Coords {
     x: f32,
     y: f32,
-    z: f32,
 }
 
 impl ToString for Coords {
     fn to_string(&self) -> String {
-        format!("({}, {}, {})", self.x, self.y, self.z)
+        format!("({}, {})", self.x, self.y)
     }
 }
 
 impl Coords {
-    pub fn new(x: f32, y: f32, z: f32) -> Self {
-        Coords { x, y, z }
+    pub fn new(x: f32, y: f32) -> Self {
+        Coords { x, y }
     }
 }
 
@@ -137,21 +166,12 @@ pub struct Ship {
 }
 
 impl Entity for Ship {
-    fn start(&mut self) {
-        println!("Ship starting at {}", self.location.to_string());
-    }
+    fn start(&mut self) {}
 
     fn update(&mut self, dt: f32) {
         self.oxygen -= 0.1 * dt;
         self.fuel -= 0.2 * dt;
         self.food -= 0.3 * dt;
-        println!(
-            "Ship at {} has oxygen: {}, fuel: {}, food: {}",
-            self.location.to_string(),
-            self.oxygen,
-            self.fuel,
-            self.food
-        );
     }
 
     fn location(&self) -> Coords {
