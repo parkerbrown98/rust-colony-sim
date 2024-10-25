@@ -124,7 +124,7 @@ impl Game {
 
     fn update(&mut self, dt: f32) -> io::Result<()> {
         self.state.update(dt);
-        self.display.update(dt)?;
+        self.display.update()?;
         Ok(())
     }
 
